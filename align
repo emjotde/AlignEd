@@ -222,6 +222,34 @@ my $toolbar_callbacks = {
         $canvas_matrix->update();
         $canvas_bigraph->update();        
     },
+    open    => sub {
+        my $dialog = Gtk2::Dialog->new("Import corpus", $window, [qw/modal destroy-with-parent/],
+            'gtk-cancel' => 'cancel',
+            'gtk-save'      => 'ok'
+        );
+        
+        #my $label = new Gtk2::Label("Enter comment:");
+        
+        my $main_box = new Gtk2::VBox(0, 5);
+        my $fc_btn_file =Gtk2::FileChooserButton->new ('select a file' , 'open');
+        
+        $main_box->pack_start($fc_btn_file, 0, 0, 0);
+        #$main_box->pack_start($scroll_text,1, 1, 0);
+        
+        $dialog->get_content_area()->add($main_box);
+        $dialog->set_default_response ('ok');
+        $dialog->set_default_size(600, 400);
+        
+        $dialog->show_all();
+        
+        my $response = $dialog->run();
+        if($response eq "ok") {
+            #my $buffer = $entry->get_buffer();
+            #my $comment = $buffer->get_text($buffer->get_start_iter, $buffer->get_end_iter, 1);
+            #$alignment_model->add_comment($comment);
+        }
+        $dialog->destroy();
+    },
     save    => sub {
         $alignment_model->save();
     },
@@ -256,6 +284,7 @@ my $toolbar_callbacks = {
         );
         
         my $label = new Gtk2::Label("Enter comment:");
+        
         my $entry = new Gtk2::TextView();
         $entry->set_wrap_mode("word");
         
@@ -263,12 +292,17 @@ my $toolbar_callbacks = {
         $scroll_text->set_shadow_type('in');
         $scroll_text->set_policy('automatic', 'automatic');
         $scroll_text->add($entry);
+
+        my $main_box = new Gtk2::VBox(0, 5);
+        $main_box->pack_start($label, 0, 0, 0);
+        $main_box->pack_start($scroll_text,1, 1, 0);
         
-        $dialog->get_content_area()->add($label);
-        $dialog->get_content_area()->add($scroll_text);
+        $dialog->get_content_area()->add($main_box);
         $dialog->set_default_response ('ok');
+        $dialog->set_default_size(400, 200);
         
         $dialog->show_all();
+        
         my $response = $dialog->run();
         if($response eq "ok") {
             my $buffer = $entry->get_buffer();
@@ -410,52 +444,77 @@ sub write_pdf_clicked {
 sub make_toolbar {
     my $callbacks = shift;
     
-    my $toolbar = new Gtk2::HBox(0,0);
+    my $toolbar = new Gtk2::Toolbar();
+    
+    $toolbar->set_icon_size ('large-toolbar');
+    #my $tt = Gtk2::Tooltips->new();
 
+    
     my $button_goback = Gtk2::ToolButton->new_from_stock("gtk-go-back");
-    $toolbar->pack_start($button_goback,0,0,0);
+    $toolbar->insert($button_goback,-1);
     $button_goback->signal_connect("clicked" => $callbacks->{back} );
 
     my $button_goforward = Gtk2::ToolButton->new_from_stock("gtk-go-forward");
-    $toolbar->pack_start($button_goforward,0,0,0);
+    $toolbar->insert($button_goforward,-1);
     $button_goforward->signal_connect("clicked" => $callbacks->{forward} );
     
-    $toolbar->pack_start(new Gtk2::SeparatorToolItem(),0,0,0);
+    $toolbar->insert(new Gtk2::SeparatorToolItem(),-1);
     
+    my $tool_offset = Gtk2::ToolItem->new();
     my $navigation = new Gtk2::Label("Offset: ");
-    $toolbar->pack_start($navigation,0,0,0);    
+    $tool_offset->add($navigation);    
     
+    my $tool_jump = Gtk2::ToolItem->new();
     my $entry_jump = Gtk2::SpinButton->new($alignment_model->{adjustment}, 1, 0);
     $entry_jump->signal_connect("value-changed" => $callbacks->{spin} );
-    $toolbar->pack_start($entry_jump,0,0,0);    
+    $tool_jump->add($entry_jump);
     
-    $toolbar->pack_start(new Gtk2::SeparatorToolItem(),0,0,0);
+    $toolbar->insert($tool_offset,-1);
+    $toolbar->insert($tool_jump,-1);
+    
+    $toolbar->insert(new Gtk2::SeparatorToolItem(),-1);
+    
+    my $tool_db = Gtk2::ToolItem->new();
+    my $chooser_db = Gtk2::FileChooserButton->new ('select a file' , 'open');
+    $chooser_db->set_size_request(150, -1);
+    $tool_db->add($chooser_db);
+    $toolbar->insert($tool_db,-1);
+    
+    $toolbar->insert(new Gtk2::SeparatorToolItem(),-1);
+    
+    my $button_open = Gtk2::ToolButton->new_from_stock("gtk-new");
+    $button_open->set_label("Open");
+    $toolbar->insert($button_open, -1);
+    $button_open->signal_connect("clicked" => $callbacks->{open} );
     
     my $button_save = Gtk2::ToolButton->new_from_stock("gtk-save");
-    $toolbar->pack_start($button_save,0,0,0);
+    $toolbar->insert($button_save,-1);
     $button_save->signal_connect("clicked" => $callbacks->{save} );
     
     my $button_reload = Gtk2::ToolButton->new_from_stock("gtk-revert-to-saved");
-    $toolbar->pack_start($button_reload,0,0,0);
+    $toolbar->insert($button_reload,-1);
     $button_reload->signal_connect("clicked" => $callbacks->{reload} );
 
     my $button_clear = Gtk2::ToolButton->new_from_stock("gtk-clear");
-    $toolbar->pack_start($button_clear,0,0,0);
+    $toolbar->insert($button_clear,-1);
     $button_clear->signal_connect("clicked" => $callbacks->{clear} );
 
     my $button_info = Gtk2::ToolButton->new_from_stock("gtk-dialog-warning");
-    $toolbar->pack_start($button_info,0,0,0);
+    $toolbar->insert($button_info,-1);
     $button_info->signal_connect("clicked" => $callbacks->{comment} );
-
-    my $bpdf = Gtk2::ToolButton->new_from_stock("gtk-convert");                     
-    $toolbar->pack_start($bpdf, 0, 0, 0);                            
-    $bpdf->show;                                                          
+    
+    
+    my $bpdf = Gtk2::ToolButton->new_from_stock("gtk-convert");
+    $toolbar->insert($bpdf, -1);                            
+    #$bpdf->show();                                                          
     $bpdf->signal_connect("clicked", \&write_pdf_clicked, $canvas_bigraph);  
     
-    $toolbar->pack_start(new Gtk2::SeparatorToolItem(),0,0,0);
+    $toolbar->insert(new Gtk2::SeparatorToolItem(),-1);
     
+    my $tool_autosave = Gtk2::ToolItem->new();
     my $button_autosave = Gtk2::CheckButton->new_with_label("Autosave");
-    $toolbar->pack_start($button_autosave,0,0,0);
+    $tool_autosave->add($button_autosave);
+    $toolbar->insert($tool_autosave,-1);
     $button_autosave->signal_connect("toggled" => $callbacks->{autosave} );
             
     return $toolbar;
