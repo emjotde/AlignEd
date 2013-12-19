@@ -315,7 +315,7 @@ my $toolbar_callbacks = {
 
 ####################################################################################################################
 
-$window->set_title("Alignment editor");
+$window->set_title("AlignEd 0.4");
 $window->signal_connect('delete_event' => sub { Gtk2->main_quit; });
 $window->signal_connect('key_press_event' => sub {
     my ($self, $event) = @_;
@@ -507,7 +507,7 @@ sub make_toolbar {
     my $bpdf = Gtk2::ToolButton->new_from_stock("gtk-convert");
     $toolbar->insert($bpdf, -1);                            
     #$bpdf->show();                                                          
-    $bpdf->signal_connect("clicked", \&write_pdf_clicked, $canvas_bigraph);  
+    $bpdf->signal_connect("clicked", \&write_pdf_clicked, $canvas_matrix);  
     
     $toolbar->insert(new Gtk2::SeparatorToolItem(),-1);
     

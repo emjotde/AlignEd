@@ -134,7 +134,7 @@ sub draw {
     }
     
     my $tx = $margin;
-    my $ty = $margin;
+    my $ty = $margin - 13;
     foreach( 0 .. $#$trg ) {
         if($_ > 0) {
             $tx += $linespace;
@@ -148,7 +148,7 @@ sub draw {
             'north-west',
             'use-markup' => 1,
         );
-        $text->rotate(-90, $tx, $ty);
+        $text->rotate(-45, $tx, $ty);
         push(@{$canvas->{trg_text}}, $text);
     }
     
