@@ -1,6 +1,6 @@
 package Alignment::Model;
-use base 'Gtk2::ListStore';
 use Gtk2;
+use base 'Gtk2::ListStore';
 use DBI;
 use Data::Dumper;
 
@@ -41,25 +41,35 @@ sub new {
     $model->{dbh} = DBI->connect("dbi:SQLite:dbname=$db", "", "");
     $model->{dbh}->{AutoCommit} = 1;
 
-    #$model->{dbh}->do("DROP TABLE IF EXISTS documents;");
-    #$model->{dbh}->do("DROP TABLE IF EXISTS tu;");
-    #$model->{dbh}->do("DROP TABLE IF EXISTS tuv;");
-    #$model->{dbh}->do("DROP TABLE IF EXISTS seg_tokenized;");
-    #$model->{dbh}->do("DROP TABLE IF EXISTS alignment;");
-    #$model->{dbh}->do("DROP TABLE IF EXISTS comment;");
-    #$model->{dbh}->do("DROP TABLE IF EXISTS direction;");
-    #
-    #$model->{dbh}->do("CREATE TABLE documents(doc_id INTEGER PRIMARY KEY, name);");
-    #$model->{dbh}->do("CREATE TABLE tu(tu_id INTEGER PRIMARY KEY, doc_id INTEGER);");
-    #$model->{dbh}->do("CREATE TABLE tuv(tuv_id INTEGER PRIMARY KEY, tu_id INTEGER, lang_id INTEGER);");
-    #$model->{dbh}->do("CREATE TABLE seg_tokenized(seg_id INTEGER PRIMARY KEY, tuv_id INTEGER, data);");
-    #$model->{dbh}->do("CREATE TABLE alignment(a_id INTEGER PRIMARY KEY, tu_id INTEGER, dir_id INTEGER, aut_id INTEGER, sure BOOLEAN, probable BOOLEAN, created);");
-    #$model->{dbh}->do("CREATE TABLE comment(c_id INTEGER PRIMARY KEY, tu_id INTEGER, dir_id INTEGER, aut_id INTEGER, data);");
-    #$model->{dbh}->do("CREATE TABLE direction(dir_id INTEGER PRIMARY KEY, lang1_id INTEGER, lang2_id INTEGER);");
+    # create all tables if things are empty
+    my ($result) = $model->{dbh}->selectrow_array("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'");
+    if(!defined($result) or $result ne "documents") {
+        $model->{dbh}->do("DROP TABLE IF EXISTS documents;");
+        $model->{dbh}->do("DROP TABLE IF EXISTS tu;");
+        $model->{dbh}->do("DROP TABLE IF EXISTS tuv;");
+        $model->{dbh}->do("DROP TABLE IF EXISTS seg_tokenized;");
+        $model->{dbh}->do("DROP TABLE IF EXISTS alignment;");
+        $model->{dbh}->do("DROP TABLE IF EXISTS comment;");
+        $model->{dbh}->do("DROP TABLE IF EXISTS direction;");
+        
+        $model->{dbh}->do("CREATE TABLE documents(doc_id INTEGER PRIMARY KEY, name);");
+        $model->{dbh}->do("CREATE TABLE tu(tu_id INTEGER PRIMARY KEY, doc_id INTEGER);");
+        $model->{dbh}->do("CREATE TABLE tuv(tuv_id INTEGER PRIMARY KEY, tu_id INTEGER, lang_id INTEGER);");
+        $model->{dbh}->do("CREATE TABLE seg_tokenized(seg_id INTEGER PRIMARY KEY, tuv_id INTEGER, data);");
+        $model->{dbh}->do("CREATE TABLE alignment(a_id INTEGER PRIMARY KEY, tu_id INTEGER, dir_id INTEGER, aut_id INTEGER, sure, probable, created);");
+        $model->{dbh}->do("CREATE TABLE comment(c_id INTEGER PRIMARY KEY, tu_id INTEGER, dir_id INTEGER, aut_id INTEGER, data);");
+        $model->{dbh}->do("CREATE TABLE direction(dir_id INTEGER PRIMARY KEY, lang1_id INTEGER, lang2_id INTEGER);");
+    }
+
+    $model->{insert_document}  = $model->{dbh}->prepare("INSERT INTO documents (name) values (?)");
+    $model->{insert_tu}        = $model->{dbh}->prepare("INSERT INTO tu (doc_id) values (?)");
+    $model->{insert_tuv}       = $model->{dbh}->prepare("INSERT INTO tuv (tu_id, lang_id) values (?, ?)");
+    $model->{insert_segment}   = $model->{dbh}->prepare("INSERT INTO seg_tokenized (tuv_id, data) values (?, ?)");
+    $model->{insert_direction} = $model->{dbh}->prepare("INSERT INTO direction (lang1_id, lang2_id) values (?, ?)");
     
-    $model->{count} = $model->{dbh}->prepare("
-        SELECT COUNT(*) AS count FROM tu;
-    ");
+    $model->{get_last_alignment_id} = $model->{dbh}->prepare("SELECT last_insert_rowid() as currval;");
+
+    $model->{count} = $model->{dbh}->prepare("SELECT COUNT(*) AS count FROM tu;");
     
     $model->{data_query} = $model->{dbh}->prepare("
         SELECT t1.tu_id, d.dir_id, s1.data as src, s2.data as trg, a_id, sure, probable FROM
@@ -76,18 +86,9 @@ sub new {
             LIMIT 1 OFFSET ?;   
     ");
 
-    $model->{insert_alignment} = $model->{dbh}->prepare("
-        INSERT INTO alignment (tu_id, dir_id, aut_id, sure, probable) VALUES (?,?,?,?,?);
-    ");
-    $model->{get_last_alignment_id} = $model->{dbh}->prepare("
-        SELECT last_insert_rowid();
-    ");
-    $model->{update_alignment} = $model->{dbh}->prepare("
-        UPDATE alignment SET sure = ?, probable = ?, created = datetime('now') WHERE tu_id = ? and dir_id = ? and aut_id = ?;
-    ");
-    $model->{insert_comment} = $model->{dbh}->prepare("
-        INSERT INTO comment (tu_id, dir_id, aut_id, data) VALUES (?,?,?,?);
-    ");
+    $model->{insert_alignment} = $model->{dbh}->prepare("INSERT INTO alignment (tu_id, dir_id, aut_id, sure, probable) VALUES (?,?,?,?,?);");
+    $model->{update_alignment} = $model->{dbh}->prepare("UPDATE alignment SET sure = ?, probable = ?, created = datetime('now') WHERE tu_id = ? and dir_id = ? and aut_id = ?;");
+    $model->{insert_comment}   = $model->{dbh}->prepare("INSERT INTO comment (tu_id, dir_id, aut_id, data) VALUES (?,?,?,?);");
 
     my $max = 0;
     $model->{count}->execute();
@@ -105,6 +106,18 @@ sub new {
 
     $model->get_data();
     return $model;
+}
+
+sub last_id {
+    my $self = shift;
+    $self->{get_last_alignment_id}->execute();
+    my $ref = $self->{get_last_alignment_id}->fetchrow_hashref();
+    print Dumper(\$ref);
+    return $ref->{currval};
+}
+
+sub add_sentence_pair {
+    my $self = shift;
 }
 
 sub add_comment {
@@ -126,9 +139,8 @@ sub save {
         $self->{update_alignment}->execute(Dumper($self->get_sure()), Dumper($self->get_probable()), $self->{data}->{tu_id}, $self->{direction}, $self->{author});
     }
     else {
-        $self->{insert_alignment}->execute($self->{data}->{tu_id}, $self->{direction}, $self->{author}, $self->get_sure(), $self->get_probable());
-        $self->{get_last_alignment_id}->execute();
-        $self->{data}->{a_id} = $self->{get_last_alignment_id}->fetchrow_hashref()->{currval};
+        $self->{insert_alignment}->execute($self->{data}->{tu_id}, $self->{direction}, $self->{author}, Dumper($self->get_sure()), Dumper($self->get_probable()));
+        $self->{data}->{a_id} = $self->last_id();
     }
     $self->{modified} = 0;
 }

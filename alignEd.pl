@@ -8,6 +8,9 @@ use Gtk2 '-init';
 use Gtk2::Gdk::Keysyms;
 use Goo::Canvas;
 
+use FindBin qw($Bin);
+use lib "$Bin";
+
 use Alignment::Model;
 use Alignment::Matrix;
 use Alignment::Bigraph;
@@ -17,20 +20,17 @@ use Alignment::Bigraph;
 my $direction = 1;
 my $aut_id = 1;
 my $db = "annotations";
-my $host = "10.8.1.106";
 
 GetOptions(
     "author=i" => \$aut_id,
     "direction=i" => \$direction,
     "db=s" => \$db,
-    "host=s" => \$host
 );
 
 my $alignment_model = new Alignment::Model(
     author => $aut_id,
     direction => $direction,
-    db => $db,
-    host => $host
+    db => $db
 );
 
 my $canvas_matrix = new Alignment::Matrix(

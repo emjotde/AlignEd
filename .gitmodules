@@ -1,0 +1,3 @@
+[submodule "goocanvas"]
+	path = goocanvas
+	url = https://gitlab.gnome.org/GNOME/goocanvas.git
